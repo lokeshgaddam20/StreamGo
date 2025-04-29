@@ -1,3 +1,10 @@
 node_modules
 # Keep environment variables out of version control
 .env
+
+# Ignore prisma generated files except schema.prisma
+prisma/client/
+prisma/migrations/
+prisma/*.db
+prisma/*.db-journal
+!prisma/schema.prisma
