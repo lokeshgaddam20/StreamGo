@@ -1,4 +1,4 @@
-import { Kafka } from "kafkajs"
+import { Kafka, Partitioners } from "kafkajs"
 import fs from "fs"
 import path from "path"
 
@@ -14,82 +14,73 @@ class KafkaConfig {
                 username: "avnadmin",
                 password: "AVNS_Noc0mzdIrqqAlEugf-l",
                 mechanism: "plain"
-            },
+            }
+        });
+
+        // Initialize admin first to manage topics
+        this.admin = this.kafka.admin();
+        
+        // Use legacy partitioner to avoid warnings
+        this.producer = this.kafka.producer({
+            createPartitioner: Partitioners.LegacyPartitioner,
+            allowAutoTopicCreation: true,
             retry: {
                 initialRetryTime: 100,
-                retries: 8
+                retries: 5
             }
-        })
-        this.producer = this.kafka.producer({
-            allowAutoTopicCreation: true,
-            transactionTimeout: 30000
-        })
-        this.consumer = this.kafka.consumer({
-            groupId: "youtube-uploader",
-            sessionTimeout: 30000
-        })
+        });
+    }
+
+    async ensureTopicExists(topic) {
+        try {
+            await this.admin.connect();
+            const topics = await this.admin.listTopics();
+            
+            if (!topics.includes(topic)) {
+                await this.admin.createTopics({
+                    waitForLeaders: true,
+                    topics: [{
+                        topic,
+                        numPartitions: 1,
+                        replicationFactor: 1,
+                        configEntries: [{ name: 'cleanup.policy', value: 'delete' }]
+                    }]
+                });
+                console.log(`Topic ${topic} created successfully`);
+            } else {
+                console.log(`Topic ${topic} already exists`);
+            }
+        } finally {
+            await this.admin.disconnect();
+        }
     }
 
     async produce(topic, messages) {
         try {
-            if (!this.producer) {
-                throw new Error('Producer not initialized');
-            }
+            // Ensure topic exists first
+            await this.ensureTopicExists(topic);
+            
+            // Connect producer
+            await this.producer.connect();
+            console.log("Kafka producer connected successfully");
 
-            await this.producer.connect()
-            console.log("Kafka producer connected successfully")
-
+            // Send messages
             const result = await this.producer.send({
-                topic: topic,
-                messages: messages
-            })
+                topic,
+                messages
+            });
 
-            console.log(`Messages sent successfully to topic ${topic}:`, result)
-            return result
+            console.log(`Messages sent successfully to topic ${topic}:`, result);
+            return result;
         } catch (error) {
-            console.error('Error in Kafka produce:', error)
-            throw error
+            console.error('Error in Kafka produce:', error);
+            throw error;
         } finally {
             try {
-                await this.producer.disconnect()
+                await this.producer.disconnect();
             } catch (error) {
-                console.error('Error disconnecting producer:', error)
+                console.error('Error disconnecting producer:', error);
             }
-        }
-    }
-
-    async consume(topic, callback) {
-        try {
-            await this.consumer.connect()
-            console.log("Kafka consumer connected successfully")
-
-            await this.consumer.subscribe({
-                topic: topic,
-                fromBeginning: true
-            })
-
-            await this.consumer.run({
-                eachMessage: async ({ topic, partition, message }) => {
-                    try {
-                        const value = message.value.toString()
-                        await callback(value)
-                    } catch (error) {
-                        console.error('Error processing message:', error)
-                    }
-                }
-            })
-        } catch (error) {
-            console.error('Error in Kafka consume:', error)
-            throw error
-        }
-    }
-
-    async disconnect() {
-        try {
-            await this.consumer.disconnect()
-            await this.producer.disconnect()
-        } catch (error) {
-            console.error('Error disconnecting from Kafka:', error)
         }
     }
 }

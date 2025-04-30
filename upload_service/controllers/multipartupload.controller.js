@@ -110,30 +110,42 @@ export const completeUpload = async (req, res) => {
         const parts = data.Parts.map(part => ({
             ETag: part.ETag,
             PartNumber: part.PartNumber
-        }));
+        })).sort((a, b) => a.PartNumber - b.PartNumber);
 
-        completeParams.MultipartUpload = {
-            Parts: parts.sort((a, b) => a.PartNumber - b.PartNumber)
-        };
+        completeParams.MultipartUpload = { Parts: parts };
 
-        // Completing multipart upload using promise
+        // Complete S3 upload
         const uploadResult = await s3.completeMultipartUpload(completeParams).promise();
+        console.log("S3 upload completed successfully:", uploadResult);
 
-        console.log("Upload completed successfully:", uploadResult);
-
-        // Add video details to DB and push to Kafka
-        await addVideoDetailsToDB(title, description, author, uploadResult.Location);
-        await pushVideoForEncodingToKafka(title, uploadResult.Location);
-        
-        return res.status(200).json({ 
-            message: "Uploaded successfully!!!",
-            location: uploadResult.Location
-        });
-
+        try {
+            // Send to Kafka before adding to DB
+            await pushVideoForEncodingToKafka(title, uploadResult.Location);
+            
+            // Only add to DB if Kafka message was successful
+            await addVideoDetailsToDB(title, description, author, uploadResult.Location);
+            
+            return res.status(200).json({ 
+                message: "Upload successful and queued for processing",
+                location: uploadResult.Location
+            });
+        } catch (processingError) {
+            // If Kafka fails, we should cleanup the S3 upload
+            try {
+                await s3.deleteObject({
+                    Bucket: bucketName,
+                    Key: key
+                }).promise();
+            } catch (cleanupError) {
+                console.error('Error cleaning up S3 object after Kafka failure:', cleanupError);
+            }
+            
+            throw new Error('Failed to process video: ' + processingError.message);
+        }
     } catch (error) {
-        console.error('Error completing upload:', error);
+        console.error('Error in upload process:', error);
         return res.status(500).json({
-            error: error.message || 'Upload completion failed'
+            error: error.message || 'Upload failed'
         });
     }
 };
