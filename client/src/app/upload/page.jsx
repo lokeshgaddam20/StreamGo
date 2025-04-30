@@ -15,6 +15,8 @@ const UploadForm = () => {
   const [description, setDescription] = useState('');
   const [author, setAuthor] = useState(session?.user?.name || '');
   const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [fileKey, setFileKey] = useState(null);
 
   if (!session) {
     redirect('/');
@@ -32,6 +34,9 @@ const UploadForm = () => {
 
     try {
       setUploading(true);
+      setUploadProgress(0);
+      
+      // Initialize upload
       const formData = new FormData();
       formData.append('filename', selectedFile.name);
       const initializeRes = await axios.post('http://localhost:8080/upload/initialize', formData, {
@@ -40,43 +45,68 @@ const UploadForm = () => {
         }
       });
       
-      const { uploadId } = initializeRes.data;
-      const chunkSize = 5 * 1024 * 1024; // 5 MB chunks
+      const { uploadId, key } = initializeRes.data;
+      setFileKey(key);
+      
+      // Upload chunks
+      const chunkSize = 5 * 1024 * 1024;
       const totalChunks = Math.ceil(selectedFile.size / chunkSize);
       let start = 0;
       const uploadPromises = [];
+      const partETags = [];
 
       for (let chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++) {
         const chunk = selectedFile.slice(start, start + chunkSize);
         start += chunkSize;
         const chunkFormData = new FormData();
-        chunkFormData.append('filename', selectedFile.name);
         chunkFormData.append('chunk', chunk);
-        chunkFormData.append('totalChunks', totalChunks);
-        chunkFormData.append('chunkIndex', chunkIndex);
+        chunkFormData.append('key', key);
         chunkFormData.append('uploadId', uploadId);
+        chunkFormData.append('chunkIndex', chunkIndex);
+        chunkFormData.append('totalChunks', totalChunks);  // Add totalChunks parameter
 
         const uploadPromise = axios.post('http://localhost:8080/upload', chunkFormData, {
           headers: {
             'Content-Type': 'multipart/form-data'
+          },
+          onUploadProgress: (progressEvent) => {
+            const progress = ((chunkIndex + 1) / totalChunks) * 100;
+            setUploadProgress(Math.min(progress, 99));
           }
+        }).then(response => {
+          if (response.data.ETag) {
+            partETags.push({
+              PartNumber: chunkIndex + 1,
+              ETag: response.data.ETag
+            });
+          }
+          return response;
         });
+        
         uploadPromises.push(uploadPromise);
       }
 
       await Promise.all(uploadPromises);
 
+      // Complete upload
       const completeRes = await axios.post('http://localhost:8080/upload/complete', {
         uploadId,
+        key,
         title,
         description,
         author
       });
 
+      setUploadProgress(100);
       alert('Upload successful!');
+      
+      // Reset form
       setTitle('');
       setDescription('');
       setSelectedFile(null);
+      setFileKey(null);
+      setUploadProgress(0);
+      
     } catch (error) {
       console.error('Error uploading file:', error);
       alert('Error uploading file. Please try again.');
@@ -135,16 +165,26 @@ const UploadForm = () => {
               <Input
                 type="file"
                 onChange={handleFileChange}
+                accept="video/*"
                 className="bg-gray-700 border-gray-600 text-white"
               />
             </div>
 
+            {uploading && (
+              <div className="w-full bg-gray-700 rounded-full h-2.5">
+                <div 
+                  className="bg-purple-600 h-2.5 rounded-full transition-all duration-300"
+                  style={{ width: `${uploadProgress}%` }}
+                ></div>
+              </div>
+            )}
+
             <Button
               onClick={handleUpload}
               disabled={!selectedFile || uploading}
-              className="w-full bg-purple-600 hover:bg-purple-700"
+              className="w-full bg-purple-600 hover:bg-purple-700 disabled:bg-gray-600"
             >
-              {uploading ? 'Uploading...' : 'Upload'}
+              {uploading ? `Uploading... ${Math.round(uploadProgress)}%` : 'Upload'}
             </Button>
           </CardContent>
         </Card>
