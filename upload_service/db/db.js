@@ -4,15 +4,18 @@ const prisma = new PrismaClient()
 
 export async function addVideoDetailsToDB(title, description, author, url) {
   try {
+    // Ensure URL is properly encoded for storage
+    const encodedUrl = encodeURI(url);
+    
     const video = await prisma.videoData.create({
       data: {
         title,
         description,
         author,
-        url
+        url: encodedUrl
       }
     })
-    console.log(video);
+    console.log('Video data stored:', video);
     return video
   } catch (error) {
     console.error('Error adding video data to DB:', error)

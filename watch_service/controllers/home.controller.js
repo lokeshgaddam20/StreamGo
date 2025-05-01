@@ -1,15 +1,21 @@
-import {PrismaClient} from "@prisma/client"
+import { PrismaClient } from "@prisma/client"
 
 const getAllVideos = async(req, res) => {
     const prisma = new PrismaClient();
     try {
-        const allData = await prisma.$queryRaw`SELECT * FROM "VideoData"`;
-        console.log(allData);
-        return res.status(200).send(allData);
-      } catch (error) {
-        console.log('Error fetching data:', error);
-        return res.status(400).send();
-      }
+        const allData = await prisma.videoData.findMany({
+            orderBy: {
+                id: 'desc'  // Order by id instead of createdAt for now
+            }
+        });
+        console.log('Fetched videos:', allData);
+        await prisma.$disconnect();
+        return res.status(200).json(allData);
+    } catch (error) {
+        console.error('Error fetching data:', error);
+        await prisma.$disconnect();
+        return res.status(500).json({ error: 'Failed to fetch videos' });
+    }
 }
 
 export default getAllVideos;

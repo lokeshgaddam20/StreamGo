@@ -1,27 +1,66 @@
 "use client"
 import React, { useEffect, useState } from 'react';
 import axios from "axios";
-import dynamic from 'next/dynamic';
 import NavBar from '../components/navbar';
 import { Card, CardContent } from "@/components/ui/card";
-const ReactPlayer = dynamic(() => import("react-player"), { ssr: false });
 
 const YouTubeHome = () => {
     const [videos, setVideos] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [videoUrls, setVideoUrls] = useState({});
+
+    const fetchSignedUrl = async (videoUrl) => {
+        try {
+            const response = await axios.get(`http://localhost:8082/watch`, {
+                params: { url: videoUrl }
+            });
+            console.log('Received signed URL:', response.data);
+            return response.data.signedUrl;
+        } catch (error) {
+            console.error('Error fetching signed URL:', error);
+            return null;
+        }
+    };
+
+    const fetchVideos = async () => {
+        try {
+            const res = await axios.get('http://localhost:8082/watch/home');
+            console.log('Fetched videos:', res.data);
+            setVideos(res.data);
+            
+            // Pre-fetch signed URLs for all videos
+            const urlPromises = res.data.map(video => fetchSignedUrl(video.url));
+            const signedUrls = await Promise.all(urlPromises);
+            
+            const urlMap = {};
+            res.data.forEach((video, index) => {
+                if (signedUrls[index]) {
+                    urlMap[video.url] = signedUrls[index];
+                }
+            });
+            
+            console.log('Video URLs map:', urlMap);
+            setVideoUrls(urlMap);
+            setLoading(false);
+        } catch (error) {
+            console.error('Error in fetching videos:', error);
+            setLoading(false);
+        }
+    };
+
+    const handleVideoError = async (video) => {
+        console.log('Video error, refreshing URL for:', video.url);
+        const newUrl = await fetchSignedUrl(video.url);
+        if (newUrl) {
+            setVideoUrls(prev => ({
+                ...prev,
+                [video.url]: newUrl
+            }));
+        }
+    };
 
     useEffect(() => {
-        const getVideos = async () => {
-            try {
-                const res = await axios.get('http://localhost:8082/watch/home');
-                setVideos(res.data);
-                setLoading(false);
-            } catch (error) {
-                console.log('Error in fetching videos : ', error);
-                setLoading(false);
-            }
-        }
-        getVideos();
+        fetchVideos();
     }, []);
 
     return (
@@ -41,13 +80,18 @@ const YouTubeHome = () => {
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                         {videos.map(video => (
                             <Card key={video.id} className="bg-gray-800 text-white overflow-hidden">
-                                <div className="aspect-video">
-                                    <ReactPlayer
-                                        url={video.url}
-                                        width="100%"
-                                        height="100%"
-                                        controls={true}
-                                    />
+                                <div className="aspect-video relative">
+                                    {videoUrls[video.url] && (
+                                        <video
+                                            className="w-full h-full"
+                                            controls
+                                            controlsList="nodownload"
+                                            onError={() => handleVideoError(video)}
+                                        >
+                                            <source src={videoUrls[video.url]} type="video/mp4" />
+                                            Your browser does not support the video tag.
+                                        </video>
+                                    )}
                                 </div>
                                 <CardContent className="p-4">
                                     <h2 className="text-lg font-semibold mb-2 line-clamp-2">{video.title}</h2>

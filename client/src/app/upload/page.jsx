@@ -1,7 +1,7 @@
 "use client"
 import React, { useState } from 'react';
 import { useSession } from 'next-auth/react';
-import { redirect } from 'next/navigation';
+import { redirect, useRouter } from 'next/navigation';
 import axios from 'axios';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,6 +9,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/com
 import NavBar from '../components/navbar';
 
 const UploadForm = () => {
+  const router = useRouter();
   const { data: session } = useSession();
   const [selectedFile, setSelectedFile] = useState(null);
   const [title, setTitle] = useState('');
@@ -63,7 +64,7 @@ const UploadForm = () => {
         chunkFormData.append('key', key);
         chunkFormData.append('uploadId', uploadId);
         chunkFormData.append('chunkIndex', chunkIndex);
-        chunkFormData.append('totalChunks', totalChunks);  // Add totalChunks parameter
+        chunkFormData.append('totalChunks', totalChunks);
 
         const uploadPromise = axios.post('http://localhost:8080/upload', chunkFormData, {
           headers: {
@@ -106,6 +107,9 @@ const UploadForm = () => {
       setSelectedFile(null);
       setFileKey(null);
       setUploadProgress(0);
+      
+      // Redirect to home page after successful upload
+      router.push('/');
       
     } catch (error) {
       console.error('Error uploading file:', error);
