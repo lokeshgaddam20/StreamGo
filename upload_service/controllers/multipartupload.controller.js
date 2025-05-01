@@ -18,7 +18,11 @@ export const initializeUpload = async (req, res) => {
        });
 
        const bucketName = process.env.AWS_BUCKET;
-       const key = `${filename}-${Date.now()}.mp4`;
+       // Sanitize filename by replacing special characters
+       const sanitizedFilename = filename
+           .replace(/[^a-zA-Z0-9.-]/g, '_')
+           .replace(/\s+/g, '_');
+       const key = `${sanitizedFilename}-${Date.now()}.mp4`;
 
        const createParams = {
            Bucket: bucketName,

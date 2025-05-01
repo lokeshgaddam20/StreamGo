@@ -1,46 +1,19 @@
 "use client"
 import React, { useEffect, useState } from 'react';
 import axios from "axios";
+import { useRouter } from 'next/navigation';
 import NavBar from '../components/navbar';
 import { Card, CardContent } from "@/components/ui/card";
 
 const YouTubeHome = () => {
     const [videos, setVideos] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [videoUrls, setVideoUrls] = useState({});
-
-    const fetchSignedUrl = async (videoUrl) => {
-        try {
-            const response = await axios.get(`http://localhost:8082/watch`, {
-                params: { url: videoUrl }
-            });
-            console.log('Received signed URL:', response.data);
-            return response.data.signedUrl;
-        } catch (error) {
-            console.error('Error fetching signed URL:', error);
-            return null;
-        }
-    };
+    const router = useRouter();
 
     const fetchVideos = async () => {
         try {
             const res = await axios.get('http://localhost:8082/watch/home');
-            console.log('Fetched videos:', res.data);
             setVideos(res.data);
-            
-            // Pre-fetch signed URLs for all videos
-            const urlPromises = res.data.map(video => fetchSignedUrl(video.url));
-            const signedUrls = await Promise.all(urlPromises);
-            
-            const urlMap = {};
-            res.data.forEach((video, index) => {
-                if (signedUrls[index]) {
-                    urlMap[video.url] = signedUrls[index];
-                }
-            });
-            
-            console.log('Video URLs map:', urlMap);
-            setVideoUrls(urlMap);
             setLoading(false);
         } catch (error) {
             console.error('Error in fetching videos:', error);
@@ -48,20 +21,18 @@ const YouTubeHome = () => {
         }
     };
 
-    const handleVideoError = async (video) => {
-        console.log('Video error, refreshing URL for:', video.url);
-        const newUrl = await fetchSignedUrl(video.url);
-        if (newUrl) {
-            setVideoUrls(prev => ({
-                ...prev,
-                [video.url]: newUrl
-            }));
-        }
-    };
-
     useEffect(() => {
         fetchVideos();
     }, []);
+
+    const handleVideoClick = (video) => {
+        router.push(`/watch?v=${encodeURIComponent(video.url)}`);
+    };
+
+    const generateThumbnail = (url) => {
+        // For now, using a placeholder. In the future, we can generate actual thumbnails
+        return "https://placehold.co/480x270/333/FFF?text=Click+to+Play";
+    };
 
     return (
         <div className="min-h-screen bg-gray-900">
@@ -79,19 +50,26 @@ const YouTubeHome = () => {
                 ) : (
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                         {videos.map(video => (
-                            <Card key={video.id} className="bg-gray-800 text-white overflow-hidden">
+                            <Card 
+                                key={video.id} 
+                                className="bg-gray-800 text-white overflow-hidden cursor-pointer transform transition-transform hover:scale-105"
+                                onClick={() => handleVideoClick(video)}
+                            >
                                 <div className="aspect-video relative">
-                                    {videoUrls[video.url] && (
-                                        <video
-                                            className="w-full h-full"
-                                            controls
-                                            controlsList="nodownload"
-                                            onError={() => handleVideoError(video)}
+                                    <img
+                                        src={generateThumbnail(video.url)}
+                                        alt={video.title}
+                                        className="w-full h-full object-cover"
+                                    />
+                                    <div className="absolute inset-0 bg-black bg-opacity-20 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
+                                        <svg 
+                                            className="w-16 h-16 text-white" 
+                                            fill="currentColor" 
+                                            viewBox="0 0 24 24"
                                         >
-                                            <source src={videoUrls[video.url]} type="video/mp4" />
-                                            Your browser does not support the video tag.
-                                        </video>
-                                    )}
+                                            <path d="M8 5v14l11-7z"/>
+                                        </svg>
+                                    </div>
                                 </div>
                                 <CardContent className="p-4">
                                     <h2 className="text-lg font-semibold mb-2 line-clamp-2">{video.title}</h2>
