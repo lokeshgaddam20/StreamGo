@@ -1,11 +1,11 @@
 "use client"
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import axios from "axios";
 import Hls from 'hls.js';
 import NavBar from '../components/navbar';
 
-const WatchPage = () => {
+const VideoPlayer = () => {
     const searchParams = useSearchParams();
     const videoUrl = searchParams.get('v');
     const [loading, setLoading] = useState(true);
@@ -359,4 +359,18 @@ const WatchPage = () => {
     );
 };
 
-export default WatchPage;
+// Wrap the main component with Suspense
+export default function WatchPage() {
+    return (
+        <Suspense fallback={
+            <div className="min-h-screen bg-gray-900">
+                <NavBar />
+                <div className="flex items-center justify-center h-[calc(100vh-4rem)]">
+                    <div className="animate-spin rounded-full h-32 w-32 border-t-2 border-b-2 border-purple-500"></div>
+                </div>
+            </div>
+        }>
+            <VideoPlayer />
+        </Suspense>
+    );
+}
