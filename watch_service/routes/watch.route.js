@@ -1,6 +1,7 @@
 import express from "express"
 import watchVideo from "../controllers/watch.controller.js";
 import getAllVideos from "../controllers/home.controller.js";
+import indexVideoData from "../controllers/index.controller.js";
 import cors from 'cors';
 
 const router = express.Router();
@@ -10,5 +11,6 @@ router.use(cors());
 
 router.get('/', watchVideo);
 router.get('/home', getAllVideos);
+router.post('/index', indexVideoData);
 
 export default router;

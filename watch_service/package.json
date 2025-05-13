@@ -12,6 +12,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@elastic/elasticsearch": "^9.0.1",
     "@prisma/client": "^5.13.0",
     "aws-sdk": "^2.1612.0",
     "cors": "^2.8.5",

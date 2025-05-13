@@ -1,7 +1,8 @@
-import express from "express";
+import express from "express"
 import dotenv from "dotenv"
 import cors from "cors"
 import watchRouter from "./routes/watch.route.js"
+import { initializeIndex } from "./elasticsearch/client.js"
 
 dotenv.config();
 
@@ -21,6 +22,16 @@ app.get('/', (req, res) => {
    res.send('HHLD YouTube Watch Service')
 })
 
-app.listen(port, () => {
-   console.log(`Server is listening at http://localhost:${port}`);
-})
+const startServer = async () => {
+   try {
+      await initializeIndex();
+      app.listen(port, () => {
+         console.log(`Server is listening at http://localhost:${port}`);
+      });
+   } catch (error) {
+      console.error('Failed to start server:', error);
+      process.exit(1);
+   }
+};
+
+startServer();

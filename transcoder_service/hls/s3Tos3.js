@@ -60,7 +60,9 @@ const s3ToS3 = async (sourceUrl, title) => {
 
         // Convert to HLS
         console.log('Starting HLS conversion...');
-        const { masterPlaylist, segments } = await convertToHLS(inputPath, title);
+        // Sanitize the title for S3 folder usage
+        const sanitizedTitle = title.replace(/[^a-zA-Z0-9_\-]/g, '_');
+        const { masterPlaylist, segments } = await convertToHLS(inputPath, sanitizedTitle);
         console.log('HLS conversion completed:', { 
             masterPlaylistSize: masterPlaylist.length,
             segmentCount: segments ? segments.length : 'unknown'
@@ -69,7 +71,8 @@ const s3ToS3 = async (sourceUrl, title) => {
         // Upload all files to S3
         console.log('Starting upload of HLS files to S3...');
         const uploadPromises = [];
-        const destinationPath = `hls/${title}`;
+        // Use sanitizedTitle as the HLS folder
+        const destinationPath = `hls/${sanitizedTitle}`;
 
         // Upload master playlist
         console.log('Uploading master playlist...');

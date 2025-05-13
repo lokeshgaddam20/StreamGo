@@ -39,9 +39,9 @@ async function generateSignedUrl(videoUrl) {
         const bucket = url.hostname.split('.')[0];
         let key = url.pathname.substring(1);
         key = decodeURIComponent(key);
-        
+        console.log('DEBUG: S3 key being checked for HLS:', key); // <-- Add this line
         // Check if this is an HLS stream
-        if (key.includes('/hls/')) {
+        if (key.includes('hls/')) {
             // Get both the master playlist and segment URLs
             const masterKey = key;
             const hlsBasePath = key.substring(0, key.lastIndexOf('/'));
@@ -73,6 +73,8 @@ async function generateSignedUrl(videoUrl) {
                 });
             });
 
+            console.log('Generated signedUrl (HLS master.m3u8):', masterUrl);
+
             const segmentUrl = await new Promise((resolve, reject) => {
                 s3.getSignedUrl('getObject', segmentParams, (err, url) => {
                     if (err) reject(err);
@@ -80,6 +82,7 @@ async function generateSignedUrl(videoUrl) {
                 });
             });
 
+            console.log('Returning HLS object:', { signedUrl: masterUrl, type: 'hls', baseUrl: segmentUrl.split('*')[0] });
             return { 
                 signedUrl: masterUrl,
                 type: 'hls',
@@ -104,6 +107,9 @@ async function generateSignedUrl(videoUrl) {
                 });
             });
 
+            console.log('Generated signedUrl (MP4):', signedUrl);
+
+            console.log('Returning MP4 object:', { signedUrl, type: 'mp4' });
             return { 
                 signedUrl,
                 type: 'mp4'
@@ -122,6 +128,7 @@ const watchVideo = async (req, res) => {
             return res.status(400).json({ error: 'Video URL is required' });
         }
 
+        console.log('Requested videoUrl from frontend:', videoUrl); // <-- Print the requested videoUrl
         console.log('Processing video URL request:', videoUrl);
         const urlData = await generateSignedUrl(videoUrl);
         

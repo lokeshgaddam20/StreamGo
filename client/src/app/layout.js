@@ -12,9 +12,11 @@ export const metadata = {
 export default function RootLayout({ children }) {
   return (
     <html lang="en">
-      <SessionProviderAuth>
-        <body className={inter.className}>{children}</body>
-      </SessionProviderAuth>
+      <body className={inter.className}>
+        <SessionProviderAuth>
+          {children}
+        </SessionProviderAuth>
+      </body>
     </html>
   );
 }

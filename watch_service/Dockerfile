@@ -8,6 +8,8 @@ RUN npm install
 COPY . .
 RUN npx prisma generate
 
+ENV ELASTICSEARCH_URL=http://elasticsearch:9200
+
 EXPOSE 3003
 
 CMD ["npm", "run", "devstart"]
