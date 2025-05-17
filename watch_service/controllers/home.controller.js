@@ -11,12 +11,24 @@ const getAllVideos = async(req, res) => {
         if (searchQuery) {
             // Use Elasticsearch for search queries
             const searchResults = await searchVideos(searchQuery, page, limit);
-            return res.status(200).json({
-                videos: searchResults.videos,
+            
+            // Transform the search results to match the expected format
+            const formattedResults = {
+                videos: searchResults.documents.map(doc => ({
+                    id: doc.id,
+                    title: doc.title,
+                    description: doc.description,
+                    url: doc.url,
+                    author: doc.author,
+                    createdAt: doc.createdAt,
+                    highlights: doc.highlights
+                })),
                 total: searchResults.total,
                 page,
                 limit
-            });
+            };
+            
+            return res.status(200).json(formattedResults);
         }
 
         // Default behavior - get all videos ordered by creation date

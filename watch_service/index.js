@@ -3,6 +3,7 @@ import dotenv from "dotenv"
 import cors from "cors"
 import watchRouter from "./routes/watch.route.js"
 import { initializeIndex } from "./elasticsearch/client.js"
+// import { startKafkaConsumer } from "./kafka/consumer.js";
 
 dotenv.config();
 
@@ -25,6 +26,9 @@ app.get('/', (req, res) => {
 const startServer = async () => {
    try {
       await initializeIndex();
+      
+      // await startKafkaConsumer();
+
       app.listen(port, () => {
          console.log(`Server is listening at http://localhost:${port}`);
       });
