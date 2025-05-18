@@ -1,12 +1,36 @@
-"use client"
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import axios from "axios";
 import { useRouter, useSearchParams } from 'next/navigation';
 import Image from 'next/image';
-import NavBar from '../components/navbar';
-import { Card, CardContent } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { 
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue 
+} from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useTheme } from "next-themes";
+import NavBar from '../components/navbar';
 import debounce from 'lodash/debounce';
+
+const VideoSkeleton = () => {
+  const { theme } = useTheme();
+  return (
+    <div className="space-y-3">
+      <Skeleton className={`w-full aspect-video rounded-xl ${theme === 'dark' ? 'bg-gray-800' : 'bg-gray-200'}`} />
+      <div className="flex gap-3 py-2">
+        <Skeleton className={`h-10 w-10 rounded-full ${theme === 'dark' ? 'bg-gray-800' : 'bg-gray-200'}`} />
+        <div className="space-y-2 flex-1">
+          <Skeleton className={`h-4 w-full ${theme === 'dark' ? 'bg-gray-800' : 'bg-gray-200'}`} />
+          <Skeleton className={`h-3 w-3/4 ${theme === 'dark' ? 'bg-gray-800' : 'bg-gray-200'}`} />
+        </div>
+      </div>
+    </div>
+  );
+};
 
 const YouTubeHome = () => {
     const [videos, setVideos] = useState([]);
@@ -18,11 +42,13 @@ const YouTubeHome = () => {
     const [suggestions, setSuggestions] = useState([]);
     const [showSuggestions, setShowSuggestions] = useState(false);
     const [activeSuggestionIndex, setActiveSuggestionIndex] = useState(-1);
+    const [sortBy, setSortBy] = useState("date");
     const searchInputRef = useRef(null);
     const suggestionsRef = useRef(null);
     const observerRef = useRef(null);
     const router = useRouter();
     const searchParams = useSearchParams();
+    const { theme } = useTheme();
     const VIDEOS_PER_PAGE = 12;
 
     // API base URL - can be set in environment variables
@@ -43,14 +69,15 @@ const YouTubeHome = () => {
         };
     }, []);
 
-    const fetchVideos = useCallback(async (query = '', pageNum = 1, append = false) => {
+    const fetchVideos = useCallback(async (query = '', pageNum = 1, sort = 'date', append = false) => {
         try {
             setLoading(true);
             const res = await axios.get(`${API_BASE_URL}/watch/home`, {
                 params: {
                     q: query,
                     page: pageNum,
-                    limit: VIDEOS_PER_PAGE
+                    limit: VIDEOS_PER_PAGE,
+                    sort: sort
                 }
             });
             
@@ -106,21 +133,20 @@ const YouTubeHome = () => {
             if (entries[0].isIntersecting && hasMore) {
                 const nextPage = page + 1;
                 setPage(nextPage);
-                fetchVideos(searchQuery, nextPage, true);
+                fetchVideos(searchQuery, nextPage, sortBy, true);
             }
         });
         
         if (node) observerRef.current.observe(node);
-    }, [loading, hasMore, page, searchQuery, fetchVideos]);
+    }, [loading, hasMore, page, searchQuery, sortBy, fetchVideos]);
 
-    // Debounced search function with useCallback to prevent re-creation
+    // Debounced search function
     const debouncedSearch = useCallback(
         debounce((query) => {
             setPage(1);
-            fetchVideos(query, 1, false);
+            fetchVideos(query, 1, sortBy, false);
             
             // Update URL with search query
-            // Using router.replace to prevent history stack issues
             const params = new URLSearchParams(searchParams.toString());
             if (query) {
                 params.set('q', query);
@@ -129,10 +155,10 @@ const YouTubeHome = () => {
             }
             router.replace(`/?${params.toString()}`, { scroll: false });
         }, 500),
-        [fetchVideos, router, searchParams]
+        [fetchVideos, router, searchParams, sortBy]
     );
 
-    // Debounced suggestions with useCallback to prevent re-creation
+    // Debounced suggestions
     const debouncedSuggestions = useCallback(
         debounce((query) => {
             fetchSuggestions(query);
@@ -143,8 +169,10 @@ const YouTubeHome = () => {
     // Initial fetch based on URL parameters
     useEffect(() => {
         const query = searchParams.get('q') || '';
+        const sort = searchParams.get('sort') || 'date';
         setSearchQuery(query);
-        fetchVideos(query, 1, false);
+        setSortBy(sort);
+        fetchVideos(query, 1, sort, false);
     }, [searchParams, fetchVideos]);
 
     const handleSearch = useCallback((e) => {
@@ -158,15 +186,12 @@ const YouTubeHome = () => {
     const handleSuggestionClick = useCallback((suggestion) => {
         setSearchQuery(suggestion);
         setShowSuggestions(false);
-        // Since we're using a debounced search function that takes time,
-        // execute an immediate search here to improve UX
-        fetchVideos(suggestion, 1, false);
+        fetchVideos(suggestion, 1, sortBy, false);
         
-        // Update URL with search query
         const params = new URLSearchParams(searchParams.toString());
         params.set('q', suggestion);
         router.replace(`/?${params.toString()}`, { scroll: false });
-    }, [fetchVideos, router, searchParams]);
+    }, [fetchVideos, router, searchParams, sortBy]);
 
     const handleVideoClick = useCallback((video) => {
         if (!video || !video.url) {
@@ -176,7 +201,6 @@ const YouTubeHome = () => {
         
         try {
             const bucketBase = video.url.split('.s3.')[0] + '.s3.' + video.url.split('.s3.')[1].split('/')[0];
-            // Sanitize the title exactly as in the backend
             const hlsTitle = video.title.replace(/[^a-zA-Z0-9_\-]/g, '_');
             const hlsUrl = `${bucketBase}/hls/${hlsTitle}/master.m3u8`;
             router.push(`/watch?v=${encodeURIComponent(hlsUrl)}`);
@@ -185,101 +209,102 @@ const YouTubeHome = () => {
         }
     }, [router]);
 
-  const generateThumbnail = useCallback((video) => {
-    try {
-        // Basic validation
-        if (!video || !video.url || !video.title) {
-            console.log("Missing video data - using placeholder");
-            return "https://placehold.co/480x270/333/FFF?text=Video";
-        }
-        
-        console.log("Processing video:", video.title);
-        console.log("Original URL:", video.url);
-        
-        // Parse the S3 URL correctly
-        let bucketBase;
-        let parsedUrl;
-        
+    const generateThumbnail = useCallback((video) => {
         try {
-            // Try to parse as a URL first
-            parsedUrl = new URL(video.url);
+            if (!video || !video.url || !video.title) {
+                return "https://placehold.co/480x270/333/FFF?text=Video";
+            }
             
-            // Check if it's an S3 URL
-            if (parsedUrl.hostname.includes('.s3.')) {
-                // Extract the base URL up to the region
-                const hostnameParts = parsedUrl.hostname.split('.');
-                const bucketName = hostnameParts[0];
-                const region = hostnameParts[2]; // Assuming format: bucket-name.s3.region.amazonaws.com
+            let bucketBase;
+            
+            try {
+                const parsedUrl = new URL(video.url);
                 
-                bucketBase = `${parsedUrl.protocol}//${bucketName}.s3.${region}.amazonaws.com`;
-                console.log("Extracted bucket base from S3 URL:", bucketBase);
-            } else {
-                // If it's not an S3 URL, just use the origin as the base
-                bucketBase = parsedUrl.origin;
-                console.log("Using origin as bucket base:", bucketBase);
+                if (parsedUrl.hostname.includes('.s3.')) {
+                    const hostnameParts = parsedUrl.hostname.split('.');
+                    const bucketName = hostnameParts[0];
+                    const region = hostnameParts[2];
+                    
+                    bucketBase = `${parsedUrl.protocol}//${bucketName}.s3.${region}.amazonaws.com`;
+                } else {
+                    bucketBase = parsedUrl.origin;
+                }
+            } catch (urlError) {
+                if (video.url.includes('.s3.')) {
+                    const urlParts = video.url.split('.s3.');
+                    bucketBase = urlParts[0] + '.s3.' + urlParts[1].split('/')[0];
+                } else {
+                    bucketBase = video.url.substring(0, video.url.lastIndexOf('/'));
+                }
             }
-        } catch (urlError) {
-            console.error("Error parsing URL:", urlError);
-            // Fallback to the original split method
-            if (video.url.includes('.s3.')) {
-                const urlParts = video.url.split('.s3.');
-                bucketBase = urlParts[0] + '.s3.' + urlParts[1].split('/')[0];
-                console.log("Extracted bucket base using split method:", bucketBase);
-            } else {
-                console.log("URL doesn't contain '.s3.' pattern, using full URL as base");
-                bucketBase = video.url.substring(0, video.url.lastIndexOf('/'));
-            }
-        }
-        
-        // Sanitize the title exactly as it's done in the backend
-        // Make sure this matches the sanitization in s3ToS3.js
-        const sanitizedTitle = video.title.replace(/[^a-zA-Z0-9_\-]/g, '_');
             
-        console.log("Sanitized title:", sanitizedTitle);
-        
-        // Construct the thumbnail URL
-        // This now matches how the transcoding service generates thumbnails
-        const thumbnailUrl = `${bucketBase}/thumbnails/${sanitizedTitle}/thumbnail.jpg`;
-        console.log("Generated thumbnail URL:", thumbnailUrl);
-        
-        return thumbnailUrl;
-    } catch (error) {
-        console.error('Error generating thumbnail URL:', error);
-        return "https://placehold.co/480x270/333/FFF?text=Error";
-    }
-}, []);
+            const sanitizedTitle = video.title.replace(/[^a-zA-Z0-9_\-]/g, '_');
+            const thumbnailUrl = `${bucketBase}/thumbnails/${sanitizedTitle}/thumbnail.jpg`;
+            
+            return thumbnailUrl;
+        } catch (error) {
+            console.error('Error generating thumbnail URL:', error);
+            return "https://placehold.co/480x270/333/FFF?text=Error";
+        }
+    }, []);
 
     // Handle keyboard navigation in suggestions
     const handleKeyDown = useCallback((e) => {
-        // Down arrow
         if (e.key === 'ArrowDown' && showSuggestions) {
             e.preventDefault();
             setActiveSuggestionIndex(prev => 
                 prev < suggestions.length - 1 ? prev + 1 : prev
             );
         }
-        // Up arrow
         else if (e.key === 'ArrowUp' && showSuggestions) {
             e.preventDefault();
             setActiveSuggestionIndex(prev => prev > 0 ? prev - 1 : 0);
         }
-        // Enter key
         else if (e.key === 'Enter' && showSuggestions && activeSuggestionIndex >= 0) {
             e.preventDefault();
             handleSuggestionClick(suggestions[activeSuggestionIndex]);
         }
-        // Escape key
         else if (e.key === 'Escape' && showSuggestions) {
             setShowSuggestions(false);
         }
     }, [showSuggestions, suggestions, activeSuggestionIndex, handleSuggestionClick]);
 
+    const handleSortChange = (value) => {
+        setSortBy(value);
+        setPage(1);
+        fetchVideos(searchQuery, 1, value, false);
+        
+        // Update URL with sort parameter
+        const params = new URLSearchParams(searchParams.toString());
+        params.set('sort', value);
+        router.replace(`/?${params.toString()}`, { scroll: false });
+    };
+
+    const formatTimeAgo = (dateString) => {
+        const date = new Date(dateString);
+        const now = new Date();
+        const diffMs = now - date;
+        const diffSecs = Math.floor(diffMs / 1000);
+        const diffMins = Math.floor(diffSecs / 60);
+        const diffHours = Math.floor(diffMins / 60);
+        const diffDays = Math.floor(diffHours / 24);
+        const diffMonths = Math.floor(diffDays / 30);
+        const diffYears = Math.floor(diffMonths / 12);
+        
+        if (diffYears > 0) return `${diffYears} year${diffYears > 1 ? 's' : ''} ago`;
+        if (diffMonths > 0) return `${diffMonths} month${diffMonths > 1 ? 's' : ''} ago`;
+        if (diffDays > 0) return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
+        if (diffHours > 0) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
+        if (diffMins > 0) return `${diffMins} minute${diffMins > 1 ? 's' : ''} ago`;
+        return 'Just now';
+    };
+
     return (
-        <div className="min-h-screen bg-gray-900">
+        <div className={`min-h-screen ${theme === 'dark' ? 'bg-black' : 'bg-white'}`}>
             <NavBar />
             <div className="max-w-screen-xl mx-auto px-4 py-8">
-                <div className="mb-8 relative">
-                    <div className="relative">
+                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8">
+                    <div className="relative flex-1">
                         <Input
                             ref={searchInputRef}
                             type="search"
@@ -290,11 +315,11 @@ const YouTubeHome = () => {
                                 if (searchQuery) setShowSuggestions(true);
                             }}
                             onKeyDown={handleKeyDown}
-                            className="bg-gray-800 text-white border-gray-700 focus:border-purple-500 pr-10"
+                            className={`${theme === 'dark' ? 'bg-gray-800 text-white border-gray-700' : 'bg-white text-gray-900 border-gray-200'} pr-10`}
                         />
                         <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
                             <svg 
-                                className="w-5 h-5 text-gray-400" 
+                                className={`w-5 h-5 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}
                                 fill="none" 
                                 stroke="currentColor" 
                                 viewBox="0 0 24 24" 
@@ -308,106 +333,146 @@ const YouTubeHome = () => {
                                 ></path>
                             </svg>
                         </div>
+                        
+                        {showSuggestions && suggestions.length > 0 && (
+                            <div 
+    ref={suggestionsRef}
+    className={`absolute z-10 w-full mt-1 ${theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border rounded-md shadow-lg max-h-60 overflow-auto`}
+>
+                                <ul className="py-1">
+                                    {suggestions.map((suggestion, index) => (
+                                        <li 
+                                            key={index}
+                                            className={`px-4 py-2 cursor-pointer ${theme === 'dark' ? 'hover:bg-gray-700 text-white' : 'hover:bg-gray-100 text-gray-900'} flex items-center ${
+                                                index === activeSuggestionIndex ? theme === 'dark' ? 'bg-gray-700' : 'bg-gray-100' : ''
+                                            }`}
+                                            onClick={() => handleSuggestionClick(suggestion)}
+                                            onMouseEnter={() => setActiveSuggestionIndex(index)}
+                                        >
+                                            <svg 
+                                                className={`w-4 h-4 mr-2 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}
+                                                fill="none" 
+                                                stroke="currentColor" 
+                                                viewBox="0 0 24 24" 
+                                                xmlns="http://www.w3.org/2000/svg"
+                                            >
+                                                <path 
+                                                    strokeLinecap="round" 
+                                                    strokeLinejoin="round" 
+                                                    strokeWidth="2" 
+                                                    d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                                                ></path>
+                                            </svg>
+                                            <span>{suggestion}</span>
+                                        </li>
+                                    ))}
+                                </ul>
+                            </div>
+                        )}
                     </div>
                     
-                    {/* Search suggestions dropdown */}
-                    {showSuggestions && suggestions.length > 0 && (
-                        <div 
-                            ref={suggestionsRef}
-                            className="absolute z-10 w-full mt-1 bg-gray-800 border border-gray-700 rounded-md shadow-lg max-h-60 overflow-auto"
-                        >
-                            <ul className="py-1">
-                                {suggestions.map((suggestion, index) => (
-                                    <li 
-                                        key={index}
-                                        className={`px-4 py-2 cursor-pointer hover:bg-gray-700 flex items-center ${
-                                            index === activeSuggestionIndex ? 'bg-gray-700' : ''
-                                        }`}
-                                        onClick={() => handleSuggestionClick(suggestion)}
-                                        onMouseEnter={() => setActiveSuggestionIndex(index)}
-                                    >
-                                        <svg 
-                                            className="w-4 h-4 mr-2 text-gray-400" 
-                                            fill="none" 
-                                            stroke="currentColor" 
-                                            viewBox="0 0 24 24" 
-                                            xmlns="http://www.w3.org/2000/svg"
-                                        >
-                                            <path 
-                                                strokeLinecap="round" 
-                                                strokeLinejoin="round" 
-                                                strokeWidth="2" 
-                                                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                                            ></path>
-                                        </svg>
-                                        <span className="text-white">{suggestion}</span>
-                                    </li>
-                                ))}
-                            </ul>
-                        </div>
-                    )}
+                    {/* Sort dropdown */}
+                    <div className="w-full md:w-auto">
+                        <Select value={sortBy} onValueChange={handleSortChange}>
+                            <SelectTrigger className={`w-full md:w-[200px] ${theme === 'dark' ? 'bg-gray-800 text-white border-gray-700' : 'bg-white text-gray-900 border-gray-200'}`}>
+                                <SelectValue placeholder="Sort by" />
+                            </SelectTrigger>
+                            <SelectContent className={theme === 'dark' ? 'bg-gray-800 text-white border-gray-700' : 'bg-white text-gray-900 border-gray-200'}>
+                                <SelectItem value="date">Upload Date (Newest)</SelectItem>
+                                <SelectItem value="title">Title (A-Z)</SelectItem>
+                                <SelectItem value="views">View Count (Highest)</SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </div>
                 </div>
 
                 {loading && videos.length === 0 ? (
-                    <div className="flex items-center justify-center h-[calc(100vh-4rem)]">
-                        <div className="animate-spin rounded-full h-32 w-32 border-t-2 border-b-2 border-purple-500"></div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                        {[...Array(12)].map((_, index) => (
+                            <VideoSkeleton key={index} />
+                        ))}
                     </div>
                 ) : videos.length === 0 ? (
-                    <div className="text-center text-gray-400 mt-20">
+                    <div className={`text-center ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'} mt-20`}>
                         <h3 className="text-2xl font-semibold mb-2">No videos found</h3>
                         <p>{searchQuery ? 'Try different search terms' : 'Be the first to upload educational content!'}</p>
                     </div>
                 ) : (
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                         {videos.map((video, index) => {
-                            // Add ref to last element for infinite scrolling
                             const isLastElement = index === videos.length - 1;
                             return (
-                                <Card 
+                                <div 
                                     key={video.id || index} 
                                     ref={isLastElement ? lastVideoRef : null}
-                                    className="bg-gray-800 text-white overflow-hidden cursor-pointer transform transition-transform hover:scale-105"
+                                    className="cursor-pointer group"
                                     onClick={() => handleVideoClick(video)}
                                 >
-                                    <div className="aspect-video relative">
+                                    {/* Thumbnail with overlay */}
+                                    <div className="relative aspect-video overflow-hidden rounded-xl mb-3">
                                         <Image
                                             src={generateThumbnail(video)}
                                             alt={video.title || "Video"}
                                             fill
-                                            className="object-cover"
+                                            className="object-cover transition-transform group-hover:scale-105"
                                             onError={(e) => {
-                                                // Fallback if thumbnail fails to load
                                                 e.target.src = "https://placehold.co/480x270/333/FFF?text=Video";
                                             }}
                                         />
-                                        <div className="absolute inset-0 bg-black bg-opacity-20 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
-                                            <svg 
-                                                className="w-16 h-16 text-white" 
-                                                fill="currentColor" 
+                                        {/* Example for video card hover states */}
+                                        <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all">
+                                            <svg
+                                                className="w-16 h-16 text-white"
+                                                fill="currentColor"
                                                 viewBox="0 0 24 24"
                                             >
                                                 <path d="M8 5v14l11-7z"/>
                                             </svg>
                                         </div>
                                     </div>
-                                    <CardContent className="p-4">
-                                        <h2 className="text-lg font-semibold mb-2 line-clamp-2">
-                                            {video.highlights && video.highlights.title 
-                                                ? <span dangerouslySetInnerHTML={{ __html: video.highlights.title[0] }} />
-                                                : video.title || "Untitled Video"
-                                            }
-                                        </h2>
-                                        <p className="text-sm text-gray-400 mb-2">By {video.author || "Unknown Author"}</p>
-                                        {video.description && (
-                                            <p className="text-sm text-gray-300 line-clamp-2">
-                                                {video.highlights && video.highlights.description
-                                                    ? <span dangerouslySetInnerHTML={{ __html: video.highlights.description[0] }} />
-                                                    : video.description
+                                    
+                                    {/* Video info with channel avatar */}
+                                    <div className="flex gap-3">
+                                        <div className="h-9 w-9 rounded-full bg-gray-300 flex-shrink-0 overflow-hidden">
+                                            {video.authorImage ? (
+                                                <Image
+                                                    src={video.authorImage}
+                                                    alt={video.author || "Author"}
+                                                    width={36}
+                                                    height={36}
+                                                    className="object-cover"
+                                                />
+                                            ) : (
+                                                <div className={`w-full h-full flex items-center justify-center ${theme === 'dark' ? 'bg-gray-700' : 'bg-gray-200'}`}>
+                                                    <span className={`text-sm font-semibold ${theme === 'dark' ? 'text-white' : 'text-gray-800'}`}>
+                                                        {video.author?.charAt(0) || "?"}
+                                                    </span>
+                                                </div>
+                                            )}
+                                        </div>
+                                        
+                                        <div className="flex-1">
+                                            <h2 className={`font-semibold line-clamp-2 text-base mb-1 ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+                                                {video.highlights && video.highlights.title 
+                                                    ? <span dangerouslySetInnerHTML={{ __html: video.highlights.title[0] }} />
+                                                    : video.title || "Untitled Video"
                                                 }
+                                            </h2>
+                                            <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
+                                                {video.author || "Unknown Author"}
                                             </p>
-                                        )}
-                                    </CardContent>
-                                </Card>
+                                            <div className="flex items-center gap-1 text-xs mt-1">
+                                                <span className={theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}>
+                                                    {video.views || Math.floor(Math.random() * 1000)} views
+                                                </span>
+                                                <span className={theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}>•</span>
+                                                <span className={theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}>
+                                                    {video.createdAt ? formatTimeAgo(video.createdAt) : '2 days ago'}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
                             );
                         })}
                     </div>
@@ -415,8 +480,10 @@ const YouTubeHome = () => {
                 
                 {/* Loading indicator at bottom for infinite scroll */}
                 {loading && videos.length > 0 && (
-                    <div className="flex justify-center mt-8">
-                        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-purple-500"></div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 mt-8">
+                        {[...Array(4)].map((_, index) => (
+                            <VideoSkeleton key={`load-more-${index}`} />
+                        ))}
                     </div>
                 )}
             </div>
