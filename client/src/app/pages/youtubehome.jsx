@@ -12,25 +12,22 @@ import {
   SelectValue 
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useTheme } from "next-themes";
 import NavBar from '../components/navbar';
 import debounce from 'lodash/debounce';
 
-const VideoSkeleton = () => {
-  const { theme } = useTheme();
-  return (
-    <div className="space-y-3">
-      <Skeleton className={`w-full aspect-video rounded-xl ${theme === 'dark' ? 'bg-gray-800' : 'bg-gray-200'}`} />
-      <div className="flex gap-3 py-2">
-        <Skeleton className={`h-10 w-10 rounded-full ${theme === 'dark' ? 'bg-gray-800' : 'bg-gray-200'}`} />
-        <div className="space-y-2 flex-1">
-          <Skeleton className={`h-4 w-full ${theme === 'dark' ? 'bg-gray-800' : 'bg-gray-200'}`} />
-          <Skeleton className={`h-3 w-3/4 ${theme === 'dark' ? 'bg-gray-800' : 'bg-gray-200'}`} />
-        </div>
+const VideoSkeleton = () => (
+  <div className="space-y-3">
+    <Skeleton className="w-full aspect-video rounded-xl bg-gray-200" />
+    <div className="flex gap-3 py-2">
+      <Skeleton className="h-10 w-10 rounded-full bg-gray-200" />
+      <div className="space-y-2 flex-1">
+        <Skeleton className="h-4 w-full bg-gray-200" />
+        <Skeleton className="h-3 w-3/4 bg-gray-200" />
       </div>
     </div>
-  );
-};
+  </div>
+);
+
 
 const YouTubeHome = () => {
     const [videos, setVideos] = useState([]);
@@ -48,7 +45,6 @@ const YouTubeHome = () => {
     const observerRef = useRef(null);
     const router = useRouter();
     const searchParams = useSearchParams();
-    const { theme } = useTheme();
     const VIDEOS_PER_PAGE = 12;
 
     // API base URL - can be set in environment variables
@@ -244,7 +240,7 @@ const YouTubeHome = () => {
             return thumbnailUrl;
         } catch (error) {
             console.error('Error generating thumbnail URL:', error);
-            return "https://placehold.co/480x270/333/FFF?text=Error";
+            return "https://placehold.co/480x270/EEE/555?text=Video";
         }
     }, []);
 
@@ -300,26 +296,26 @@ const YouTubeHome = () => {
     };
 
     return (
-        <div className={`min-h-screen ${theme === 'dark' ? 'bg-black' : 'bg-white'}`}>
+        <div className="min-h-screen bg-background text-foreground">
             <NavBar />
             <div className="max-w-screen-xl mx-auto px-4 py-8">
-                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8">
+                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-8 mb-8">
                     <div className="relative flex-1">
                         <Input
-                            ref={searchInputRef}
-                            type="search"
-                            placeholder="Search videos..."
-                            value={searchQuery}
-                            onChange={handleSearch}
-                            onFocus={() => {
-                                if (searchQuery) setShowSuggestions(true);
-                            }}
-                            onKeyDown={handleKeyDown}
-                            className={`${theme === 'dark' ? 'bg-gray-800 text-white border-gray-700' : 'bg-white text-gray-900 border-gray-200'} pr-10`}
-                        />
+    ref={searchInputRef}
+    type="search"
+    placeholder="Search"
+    value={searchQuery}
+    onChange={handleSearch}
+    onFocus={() => {
+        if (searchQuery) setShowSuggestions(true);
+    }}
+    onKeyDown={handleKeyDown}
+    className="pr-10 pl-4 pb-2 pt-2 bg-gray-100 dark:bg-background text-foreground border-border rounded-full"
+/>
                         <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
                             <svg 
-                                className={`w-5 h-5 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}
+                                className="w-5 h-5 text-muted-foreground"
                                 fill="none" 
                                 stroke="currentColor" 
                                 viewBox="0 0 24 24" 
@@ -336,21 +332,21 @@ const YouTubeHome = () => {
                         
                         {showSuggestions && suggestions.length > 0 && (
                             <div 
-    ref={suggestionsRef}
-    className={`absolute z-10 w-full mt-1 ${theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border rounded-md shadow-lg max-h-60 overflow-auto`}
->
+                                ref={suggestionsRef}
+                                className="absolute z-10 w-full mt-1 bg-slate-100 dark:bg-black border border-border rounded-md shadow-lg max-h-60 overflow-auto"
+                            >
                                 <ul className="py-1">
                                     {suggestions.map((suggestion, index) => (
                                         <li 
                                             key={index}
-                                            className={`px-4 py-2 cursor-pointer ${theme === 'dark' ? 'hover:bg-gray-700 text-white' : 'hover:bg-gray-100 text-gray-900'} flex items-center ${
-                                                index === activeSuggestionIndex ? theme === 'dark' ? 'bg-gray-700' : 'bg-gray-100' : ''
+                                            className={`px-4 py-2 cursor-pointer hover:bg-accent text-foreground flex items-center ${
+                                                index === activeSuggestionIndex ? 'bg-accent' : ''
                                             }`}
                                             onClick={() => handleSuggestionClick(suggestion)}
                                             onMouseEnter={() => setActiveSuggestionIndex(index)}
                                         >
                                             <svg 
-                                                className={`w-4 h-4 mr-2 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}
+                                                className="w-4 h-4 mr-2 text-muted-foreground"
                                                 fill="none" 
                                                 stroke="currentColor" 
                                                 viewBox="0 0 24 24" 
@@ -372,29 +368,46 @@ const YouTubeHome = () => {
                     </div>
                     
                     {/* Sort dropdown */}
-                    <div className="w-full md:w-auto">
-                        <Select value={sortBy} onValueChange={handleSortChange}>
-                            <SelectTrigger className={`w-full md:w-[200px] ${theme === 'dark' ? 'bg-gray-800 text-white border-gray-700' : 'bg-white text-gray-900 border-gray-200'}`}>
-                                <SelectValue placeholder="Sort by" />
-                            </SelectTrigger>
-                            <SelectContent className={theme === 'dark' ? 'bg-gray-800 text-white border-gray-700' : 'bg-white text-gray-900 border-gray-200'}>
-                                <SelectItem value="date">Upload Date (Newest)</SelectItem>
-                                <SelectItem value="title">Title (A-Z)</SelectItem>
-                                <SelectItem value="views">View Count (Highest)</SelectItem>
-                            </SelectContent>
-                        </Select>
-                    </div>
+                    <div className="w-full md:w-auto flex items-center">
+    <Select value={sortBy} onValueChange={handleSortChange}>
+        <SelectTrigger className="w-full md:w-[200px] bg-gray-100 dark:bg-background text-foreground border-border rounded-full flex items-center">
+            <svg 
+                className="w-4 h-4 mr-2 text-muted-foreground" 
+                fill="none" 
+                stroke="currentColor" 
+                viewBox="0 0 24 24" 
+                xmlns="http://www.w3.org/2000/svg"
+            >
+                <path 
+                    strokeLinecap="round" 
+                    strokeLinejoin="round" 
+                    strokeWidth="2" 
+                    d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12"
+                ></path>
+            </svg>
+            <SelectValue placeholder="Sort by" />
+        </SelectTrigger>
+        <SelectContent className="bg-white dark:bg-background rounded-xl">
+            <SelectItem value="date">Upload Date (Newest)</SelectItem>
+            <SelectItem value="title">Title (A-Z)</SelectItem>
+            <SelectItem value="views">View Count (Highest)</SelectItem>
+        </SelectContent>
+    </Select>
+</div>
                 </div>
 
                 {loading && videos.length === 0 ? (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                        {[...Array(12)].map((_, index) => (
-                            <VideoSkeleton key={index} />
-                        ))}
-                    </div>
+                    <>
+                        {/* <LoadingSpinner /> */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                            {[...Array(12)].map((_, index) => (
+                                <VideoSkeleton key={index} />
+                            ))}
+                        </div>
+                    </>
                 ) : videos.length === 0 ? (
-                    <div className={`text-center ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'} mt-20`}>
-                        <h3 className="text-2xl font-semibold mb-2">No videos found</h3>
+                    <div className="text-center text-muted-foreground mt-20">
+                        <h3 className="text-2xl font-semibold mb-2 text-foreground">No videos found</h3>
                         <p>{searchQuery ? 'Try different search terms' : 'Be the first to upload educational content!'}</p>
                     </div>
                 ) : (
@@ -414,9 +427,8 @@ const YouTubeHome = () => {
                                             src={generateThumbnail(video)}
                                             alt={video.title || "Video"}
                                             fill
-                                            className="object-cover transition-transform group-hover:scale-105"
-                                            onError={(e) => {
-                                                e.target.src = "https://placehold.co/480x270/333/FFF?text=Video";
+                                            className="object-cover transition-transform group-hover:scale-105"                                            onError={(e) => {
+                                                e.target.src = "https://placehold.co/480x270/EEE/555?text=Video";
                                             }}
                                         />
                                         {/* Example for video card hover states */}
@@ -433,7 +445,7 @@ const YouTubeHome = () => {
                                     
                                     {/* Video info with channel avatar */}
                                     <div className="flex gap-3">
-                                        <div className="h-9 w-9 rounded-full bg-gray-300 flex-shrink-0 overflow-hidden">
+                                        <div className="h-9 w-9 rounded-full flex-shrink-0 overflow-hidden bg-gray-200">
                                             {video.authorImage ? (
                                                 <Image
                                                     src={video.authorImage}
@@ -443,8 +455,8 @@ const YouTubeHome = () => {
                                                     className="object-cover"
                                                 />
                                             ) : (
-                                                <div className={`w-full h-full flex items-center justify-center ${theme === 'dark' ? 'bg-gray-700' : 'bg-gray-200'}`}>
-                                                    <span className={`text-sm font-semibold ${theme === 'dark' ? 'text-white' : 'text-gray-800'}`}>
+                                                <div className="w-full h-full flex items-center justify-center bg-muted">
+                                                    <span className="text-sm font-semibold text-muted-foreground">
                                                         {video.author?.charAt(0) || "?"}
                                                     </span>
                                                 </div>
@@ -452,21 +464,21 @@ const YouTubeHome = () => {
                                         </div>
                                         
                                         <div className="flex-1">
-                                            <h2 className={`font-semibold line-clamp-2 text-base mb-1 ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+                                            <h2 className="font-semibold line-clamp-2 text-base mb-1 text-foreground">
                                                 {video.highlights && video.highlights.title 
                                                     ? <span dangerouslySetInnerHTML={{ __html: video.highlights.title[0] }} />
                                                     : video.title || "Untitled Video"
                                                 }
                                             </h2>
-                                            <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
+                                            <p className="text-sm text-muted-foreground">
                                                 {video.author || "Unknown Author"}
                                             </p>
                                             <div className="flex items-center gap-1 text-xs mt-1">
-                                                <span className={theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}>
+                                                <span className="text-muted-foreground">
                                                     {video.views || Math.floor(Math.random() * 1000)} views
                                                 </span>
-                                                <span className={theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}>•</span>
-                                                <span className={theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}>
+                                                <span className="text-muted-foreground">•</span>
+                                                <span className="text-muted-foreground">
                                                     {video.createdAt ? formatTimeAgo(video.createdAt) : '2 days ago'}
                                                 </span>
                                             </div>
